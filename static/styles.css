@@ -58,6 +58,12 @@ header h1 {
     font-weight: bold;
 }
 
+.form-data-input {
+    color: #c0392b;
+    margin-bottom: 5px; /* Increased margin for better spacing */
+    font-size: 12px;
+}
+
 .form-data {
     margin-bottom: 20px; /* Increased margin for better spacing */
     font-size: 12px;
