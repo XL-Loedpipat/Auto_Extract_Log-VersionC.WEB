@@ -158,7 +158,7 @@ def index():
         response = send_file(output_file_path, as_attachment=True, download_name=f'{secure_filename(file_name)}.xlsx')
 
         # Clean up
-        # os.remove(output_file_path)
+        os.remove(output_file_path)
         return response
 
     return render_template('index.html')
