@@ -78,7 +78,9 @@ def process_log_files(file_addresses, wb):
 
     for file_address in file_addresses:
         try:
-            system_name = os.path.basename(file_address).split('.')[0]
+            system_name = os.path.basename(file_address)
+            system_name = system_name.split('.')[0]
+            system_name = system_name.split('_')[-1]
             txt_content = read_file_with_multiple_encodings(file_address)
 
             pattern1 = re.compile(r'\**(\w{2,3})\s+(\d{1,2}) (\d{2}:\d{2}:\d{2}\.\d{3}\s*\S*): %(\S+)-(\d)-(\w+): (.+)\s*(?:\s*-Traceback=(.+))?')
