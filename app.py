@@ -20,12 +20,12 @@ def read_file_with_multiple_encodings(file_path, encodings=['utf-8', 'iso-8859-1
             print(f"Failed to decode with {encoding}, trying next encoding.")
     raise UnicodeDecodeError(f"All tried encodings failed for {file_path}")
 
-def process_html_files(file_addresses, wb):
+def process_html_files(file_addresses, wb, summary_data):
     ws_event_log = wb.create_sheet(title="Output_event_log")
 
-    ws_event_log.append(['IP Device', 'System Name', 'Entry ID', 'Date', 'Time','Error Type', 'Error Code', 'TaskName', 'Filename', 'Line','Parameter'])
+    ws_event_log.append(['IP Device', 'System Name', 'Entry ID', 'Date', 'Time', 'Error Type', 'Error Code', 'TaskName', 'Filename', 'Line', 'Parameter'])
 
-    for file_address in file_addresses:
+    for index, file_address in enumerate(file_addresses, start=1):
         try:
             file_base_name = os.path.splitext(os.path.basename(file_address))[0]
             html_content = read_file_with_multiple_encodings(file_address)
@@ -43,13 +43,14 @@ def process_html_files(file_addresses, wb):
                 print(f"No events found in {file_address}.")
                 continue
 
-            df = pd.DataFrame(events, columns=['Entry ID', 'Date', 'Time','Error Type', 'Error Code', 'TaskName', 'Filename', 'Line','Parameter'])
+            df = pd.DataFrame(events, columns=['Entry ID', 'Date', 'Time', 'Error Type', 'Error Code', 'TaskName', 'Filename', 'Line', 'Parameter'])
             df.insert(0, 'System Name', system_name)
             df.insert(0, 'IP Device', ip_device)
             df_sorted = df.sort_values(by='Entry ID')
 
             for r in dataframe_to_rows(df_sorted, index=False, header=False):
                 ws_event_log.append(r)
+            summary_data.append([index, file_base_name, ip_device, system_name])
         except FileNotFoundError:
             print(f"File not found: {file_address}")
         except Exception as e:
@@ -71,12 +72,12 @@ def process_html_files(file_addresses, wb):
     for cell in ws_event_log[1]:
         cell.fill = yellow_fill
 
-def process_log_files(file_addresses, wb):
+def process_log_files(file_addresses, wb, summary_data):
     ws_syslog = wb.create_sheet(title="Syslog")
 
     ws_syslog.append(['System Name', 'Month', 'Date', 'Timestamp', 'Facility', 'Severity Level', 'Mnemonic', 'Message Text', 'Traceback'])
 
-    for file_address in file_addresses:
+    for index, file_address in enumerate(file_addresses, start=1):
         try:
             system_name = os.path.basename(file_address)
             system_name = system_name.split('.')[0]
@@ -97,6 +98,8 @@ def process_log_files(file_addresses, wb):
 
             for r in dataframe_to_rows(df_sorted, index=False, header=False):
                 ws_syslog.append(r)
+
+            summary_data.append([index, os.path.basename(file_address), None, system_name])
         except FileNotFoundError:
             print(f"File not found: {file_address}")
         except Exception as e:
@@ -132,22 +135,51 @@ def index():
 
         temp_dir = tempfile.gettempdir()
         wb = Workbook()
+        ws_summary = wb.active
+        ws_summary.title = "Number of files"
+        ws_summary.append(['Total Number of Files'])
+        
+        summary_data = []
 
         if html_files:
+            ws_summary.append(['No.', 'Filename', 'IP Devices', 'System Names'])
             html_file_addresses = []
             for html_file in html_files:
                 file_path = os.path.join(temp_dir, secure_filename(html_file.filename))
                 html_file.save(file_path)
                 html_file_addresses.append(file_path)
-            process_html_files(html_file_addresses, wb)
+            process_html_files(html_file_addresses, wb, summary_data)
 
         if log_files:
+            ws_summary.append(['No.', 'Filename', 'System Names'])
             log_file_addresses = []
             for log_file in log_files:
                 file_path = os.path.join(temp_dir, secure_filename(log_file.filename))
                 log_file.save(file_path)
                 log_file_addresses.append(file_path)
-            process_log_files(log_file_addresses, wb)
+            process_log_files(log_file_addresses, wb, summary_data)
+
+        # Update summary sheet with collected data
+        total_files = len(summary_data)
+        ws_summary.cell(row=1, column=2, value=total_files)
+        for row in summary_data:
+            ws_summary.append(row)
+
+        for col in ws_summary.columns:
+            max_length = 0
+            column = col[0].column_letter
+            for cell in col:
+                if cell.value and len(str(cell.value)) > max_length:
+                    max_length = len(str(cell.value))
+            ws_summary.column_dimensions[column].width = max_length + 2
+
+        yellow_fill = PatternFill(start_color='FFFF00', end_color='FFFF00', fill_type='solid')
+        light_yellow_fill = PatternFill(start_color='FFFFCC', end_color='FFFFCC', fill_type='solid')
+
+        ws_summary['A1'].fill = yellow_fill
+        ws_summary['A2'].fill = light_yellow_fill
+        for cell in ws_summary[2]:
+            cell.fill = yellow_fill
 
         output_file_path = os.path.join(temp_dir, f'{secure_filename(file_name)}.xlsx')
 
@@ -158,9 +190,9 @@ def index():
         wb.save(output_file_path)
 
         response = send_file(output_file_path, as_attachment=True, download_name=f'{secure_filename(file_name)}.xlsx')
-
+ 
         # Clean up
-        os.remove(output_file_path)
+        # os.remove(output_file_path)
         return response
 
     return render_template('index.html')
